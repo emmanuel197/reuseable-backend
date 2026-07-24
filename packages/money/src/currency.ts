@@ -40,15 +40,20 @@ export function getCurrency(code: string): Currency {
   return { code, exponent: EXPONENTS[code] };
 }
 
+/** Assert a currency exponent is a non-negative integer, or throw. Shared guard. */
+export function assertValidExponent(code: string, exponent: number): void {
+  if (!Number.isInteger(exponent) || exponent < 0) {
+    throw new InvalidCurrencyError(code, `exponent must be a non-negative integer, got ${exponent}`);
+  }
+}
+
 /**
  * Define a currency explicitly (for codes not in the static table). Prefer
  * `getCurrency` for known codes; this exists so callers aren't blocked on the
  * table before it graduates to the Country Configuration Registry.
  */
 export function defineCurrency(code: string, exponent: number): Currency {
-  if (!Number.isInteger(exponent) || exponent < 0) {
-    throw new InvalidCurrencyError(code, `exponent must be a non-negative integer, got ${exponent}`);
-  }
+  assertValidExponent(code, exponent);
   return { code, exponent };
 }
 

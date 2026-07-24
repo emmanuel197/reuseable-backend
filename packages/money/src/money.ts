@@ -1,4 +1,4 @@
-import { type Currency, currenciesEqual } from './currency';
+import { type Currency, assertValidExponent, currenciesEqual } from './currency';
 import { InvalidAmountError, InvalidCurrencyError } from './errors';
 
 /** JSON shape: self-contained (carries the currency), so round-trips exactly. */
@@ -56,10 +56,13 @@ export class Money {
     } catch {
       throw new InvalidAmountError(String(json.amount), 'amount must be an integer string');
     }
-    const { code, exponent } = json.currency;
-    if (!Number.isInteger(exponent) || exponent < 0) {
-      throw new InvalidCurrencyError(code, `exponent must be a non-negative integer, got ${exponent}`);
+    if (json.currency === null || typeof json.currency !== 'object') {
+      throw new InvalidCurrencyError(String(json.currency), 'currency must be an object');
     }
+    if (typeof json.currency.code !== 'string' || json.currency.code.length === 0) {
+      throw new InvalidCurrencyError(String(json.currency.code), 'currency code must be a non-empty string');
+    }
+    assertValidExponent(json.currency.code, json.currency.exponent);
     return new Money(minorUnits, json.currency);
   }
 

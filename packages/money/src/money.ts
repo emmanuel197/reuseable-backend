@@ -56,6 +56,9 @@ export class Money {
     } catch {
       throw new InvalidAmountError(String(json.amount), 'amount must be an integer string');
     }
+    if (json.currency === null || typeof json.currency !== 'object') {
+      throw new InvalidCurrencyError(String(json.currency), 'currency must be an object');
+    }
     const { code, exponent } = json.currency;
     if (!Number.isInteger(exponent) || exponent < 0) {
       throw new InvalidCurrencyError(code, `exponent must be a non-negative integer, got ${exponent}`);

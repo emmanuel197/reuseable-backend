@@ -86,6 +86,11 @@ describe('Money serialization', () => {
     expect(() => Money.fromJSON({ amount: 'abc', currency: USD })).toThrow(InvalidAmountError);
   });
 
+  it('fromJSON throws InvalidCurrencyError on a null/missing currency', () => {
+    expect(() => Money.fromJSON({ amount: '100', currency: null as never })).toThrow(InvalidCurrencyError);
+    expect(() => Money.fromJSON({ amount: '100' } as never)).toThrow(InvalidCurrencyError);
+  });
+
   it('fromJSON throws InvalidCurrencyError on a bad exponent', () => {
     expect(() => Money.fromJSON({ amount: '100', currency: { code: 'XxX', exponent: -1 } })).toThrow(
       InvalidCurrencyError,

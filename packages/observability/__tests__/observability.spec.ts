@@ -50,11 +50,19 @@ describe('ObsLogger structured records', () => {
     expect(rec.trace_id).toBeUndefined();
   });
 
-  it('reserved structured fields win over colliding caller fields', () => {
-    const rec = logger.record('warn', 'real message', { level: 'debug', message: 'spoofed', service: 'x' });
+  it('reserved structured fields win over colliding caller fields (incl. trace_id with no span)', () => {
+    const rec = logger.record('warn', 'real message', {
+      level: 'debug',
+      message: 'spoofed',
+      service: 'x',
+      trace_id: 'fake',
+      span_id: 'fake',
+    });
     expect(rec.level).toBe('warn');
     expect(rec.message).toBe('real message');
     expect(rec.service).toBe('obs-test');
+    expect(rec.trace_id).toBeUndefined();
+    expect(rec.span_id).toBeUndefined();
   });
 });
 

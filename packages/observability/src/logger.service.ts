@@ -34,14 +34,17 @@ export class ObsLogger {
   record(level: LogLevel, message: string, fields?: Record<string, unknown>): Record<string, unknown> {
     const ctx = trace.getActiveSpan()?.spanContext();
     // Spread caller fields FIRST so reserved structured fields always win — a
-    // colliding key (e.g. `message`, `level`) can't overwrite or misclassify.
+    // colliding key can't overwrite or misclassify. trace_id/span_id are set
+    // unconditionally (undefined with no active span) so they can't be spoofed
+    // either; undefined values are dropped by JSON.stringify.
     return {
       ...(fields ?? {}),
       time: new Date().toISOString(),
       level,
       service: this.options.serviceName,
       message,
-      ...(ctx ? { trace_id: ctx.traceId, span_id: ctx.spanId } : {}),
+      trace_id: ctx?.traceId,
+      span_id: ctx?.spanId,
     };
   }
 

@@ -24,7 +24,7 @@ export class Tracing {
       try {
         return await fn(span);
       } catch (error) {
-        span.recordException(error as Error);
+        span.recordException(error instanceof Error ? error : String(error));
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message: error instanceof Error ? error.message : String(error),
@@ -36,8 +36,9 @@ export class Tracing {
     });
   }
 
-  /** The active trace id, or `undefined` outside a traced context. */
+  /** The active trace id, or `undefined` outside a traced context or when sampling is off. */
   activeTraceId(): string | undefined {
-    return trace.getActiveSpan()?.spanContext().traceId;
+    const id = trace.getActiveSpan()?.spanContext().traceId;
+    return id && id !== '00000000000000000000000000000000' ? id : undefined;
   }
 }

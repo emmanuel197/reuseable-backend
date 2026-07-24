@@ -45,4 +45,18 @@ describe('Tracing service', () => {
     expect(span?.status.message).toBe('kaboom');
     expect(span?.events.some((e) => e.name === 'exception')).toBe(true);
   });
+
+  it('records non-Error throwables as a string exception without losing the message', async () => {
+    await expect(
+      tracing.withSpan('string-throw', () => {
+        throw 'plain string failure';
+      }),
+    ).rejects.toBe('plain string failure');
+
+    const span = memory.getFinishedSpans().find((s) => s.name === 'string-throw');
+    expect(span?.status.code).toBe(SpanStatusCode.ERROR);
+    expect(span?.status.message).toBe('plain string failure');
+    const exception = span?.events.find((e) => e.name === 'exception');
+    expect(exception?.attributes?.['exception.message']).toBe('plain string failure');
+  });
 });

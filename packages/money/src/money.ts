@@ -1,0 +1,83 @@
+import { type Currency, currenciesEqual } from './currency';
+import { InvalidAmountError } from './errors';
+
+/** JSON shape: self-contained (carries the currency), so round-trips exactly. */
+export interface MoneyJSON {
+  /** Minor units as a base-10 string (bigint is not JSON-native). */
+  readonly amount: string;
+  readonly currency: Currency;
+}
+
+/**
+ * An immutable amount of money: exact minor units (`bigint`) in a single
+ * `Currency`. Never floats. All operations return new instances.
+ */
+export class Money {
+  private constructor(
+    /** Signed amount in the currency's minor units (e.g. cents). */
+    readonly amount: bigint,
+    readonly currency: Currency,
+  ) {}
+
+  /** Build from raw minor units (e.g. `1050n` = $10.50). */
+  static fromMinor(minorUnits: bigint, currency: Currency): Money {
+    return new Money(minorUnits, currency);
+  }
+
+  /**
+   * Build from a major amount — a decimal number or string (e.g. `10.5` or
+   * `"10.50"` USD → `1050n`). Rejects more fractional digits than the currency
+   * allows, since that cannot be represented exactly (no silent rounding here).
+   */
+  static of(amount: number | string, currency: Currency): Money {
+    return new Money(parseMajorToMinor(amount, currency.exponent), currency);
+  }
+
+  /** Same currency and same minor amount. Differing currencies are simply not equal. */
+  equals(other: Money): boolean {
+    return currenciesEqual(this.currency, other.currency) && this.amount === other.amount;
+  }
+
+  /** Self-contained JSON (`amount` as string, plus the currency). */
+  toJSON(): MoneyJSON {
+    return { amount: this.amount.toString(), currency: this.currency };
+  }
+
+  /** Rebuild from {@link toJSON} output. Exact round-trip. */
+  static fromJSON(json: MoneyJSON): Money {
+    return new Money(BigInt(json.amount), json.currency);
+  }
+
+  /** Canonical debug string, e.g. `"10.50 USD"`. NOT locale formatting. */
+  toString(): string {
+    return `${minorToDecimalString(this.amount, this.currency.exponent)} ${this.currency.code}`;
+  }
+}
+
+/** Convert a major decimal amount to exact minor units, or throw on precision loss. */
+function parseMajorToMinor(amount: number | string, exponent: number): bigint {
+  const raw = typeof amount === 'string' ? amount.trim() : amount.toString();
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) {
+    throw new InvalidAmountError(raw, 'not a decimal number');
+  }
+
+  const negative = raw.startsWith('-');
+  const [intPart, fracPart = ''] = raw.replace('-', '').split('.');
+  if (fracPart.length > exponent) {
+    throw new InvalidAmountError(raw, `more than ${exponent} fractional digit(s) for this currency`);
+  }
+
+  const minorDigits = intPart + fracPart.padEnd(exponent, '0');
+  const magnitude = BigInt(minorDigits);
+  return negative ? -magnitude : magnitude;
+}
+
+/** Render signed minor units as a plain decimal string (debug/serialization helper). */
+function minorToDecimalString(minorUnits: bigint, exponent: number): string {
+  const negative = minorUnits < 0n;
+  const digits = (negative ? -minorUnits : minorUnits).toString().padStart(exponent + 1, '0');
+  const cut = digits.length - exponent;
+  const intPart = digits.slice(0, cut);
+  const fracPart = exponent > 0 ? `.${digits.slice(cut)}` : '';
+  return `${negative ? '-' : ''}${intPart}${fracPart}`;
+}

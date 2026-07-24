@@ -49,6 +49,13 @@ describe('ObsLogger structured records', () => {
     expect(typeof rec.time).toBe('string');
     expect(rec.trace_id).toBeUndefined();
   });
+
+  it('reserved structured fields win over colliding caller fields', () => {
+    const rec = logger.record('warn', 'real message', { level: 'debug', message: 'spoofed', service: 'x' });
+    expect(rec.level).toBe('warn');
+    expect(rec.message).toBe('real message');
+    expect(rec.service).toBe('obs-test');
+  });
 });
 
 describe('ObsLogger trace correlation (real provider + in-memory exporter)', () => {

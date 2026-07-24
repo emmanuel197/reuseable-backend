@@ -61,6 +61,8 @@ describe('Metrics service', () => {
     const first = svc.counter('opts_total', { unit: 'ms', description: 'd' });
     expect(svc.counter('opts_total')).toBe(first);
     expect(svc.counter('opts_total', { unit: 'ms', description: 'd' })).toBe(first);
+    // Same options, different key order — must not be treated as a conflict.
+    expect(svc.counter('opts_total', { description: 'd', unit: 'ms' })).toBe(first);
   });
 
   it('throws when the same name is re-requested with conflicting options', () => {

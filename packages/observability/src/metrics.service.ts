@@ -66,7 +66,21 @@ export class Metrics {
   }
 }
 
-/** Shallow structural equality for MetricOptions (small, JSON-serialisable shapes). */
+/** Structural equality for MetricOptions, order-insensitive across object keys. */
 function sameOptions(a: MetricOptions | undefined, b: MetricOptions | undefined): boolean {
-  return JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
+  return stableStringify(a ?? {}) === stableStringify(b ?? {});
+}
+
+/**
+ * JSON serialisation with object keys sorted recursively, so equality doesn't depend
+ * on key insertion order (plain `JSON.stringify` is order-sensitive). Arrays keep their
+ * order — MetricOptions shapes are small and JSON-serialisable (unit/description/advice).
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const entries = Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${stableStringify((value as Record<string, unknown>)[k])}`);
+  return `{${entries.join(',')}}`;
 }

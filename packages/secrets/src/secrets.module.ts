@@ -32,11 +32,29 @@ async function validateRequiredKeys(
   z.object(shape).parse(Object.fromEntries(entries));
 }
 
+/** Bind the given backend, or default to the env provider (Wave-1). */
+function resolveProvider(provider?: SecretProvider): SecretProvider {
+  return provider ?? new EnvSecretProvider();
+}
+
+/** Assemble the SecretsModule DynamicModule around a bound provider factory. */
+function assembleModule(
+  providerFactory: Provider,
+  imports: DynamicModule['imports'] = [],
+): DynamicModule {
+  return {
+    module: SecretsModule,
+    imports,
+    providers: [providerFactory, SecretsService],
+    exports: [SecretsService],
+  };
+}
+
 @Global()
 @Module({})
 export class SecretsModule {
   static forRoot(options: SecretsModuleOptions = {}): DynamicModule {
-    const provider = options.provider ?? new EnvSecretProvider();
+    const provider = resolveProvider(options.provider);
 
     const providerFactory: Provider = {
       provide: SECRET_PROVIDER,
@@ -46,11 +64,7 @@ export class SecretsModule {
       },
     };
 
-    return {
-      module: SecretsModule,
-      providers: [providerFactory, SecretsService],
-      exports: [SecretsService],
-    };
+    return assembleModule(providerFactory);
   }
 
   static forRootAsync(options: SecretsModuleAsyncOptions): DynamicModule {
@@ -59,17 +73,12 @@ export class SecretsModule {
       inject: options.inject ?? [],
       useFactory: async (...args: any[]) => {
         const resolved = await options.useFactory(...args);
-        const provider = resolved.provider ?? new EnvSecretProvider();
+        const provider = resolveProvider(resolved.provider);
         await validateRequiredKeys(provider, resolved.requiredKeys);
         return provider;
       },
     };
 
-    return {
-      module: SecretsModule,
-      imports: options.imports ?? [],
-      providers: [providerFactory, SecretsService],
-      exports: [SecretsService],
-    };
+    return assembleModule(providerFactory, options.imports ?? []);
   }
 }

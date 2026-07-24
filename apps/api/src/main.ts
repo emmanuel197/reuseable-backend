@@ -13,12 +13,14 @@ async function bootstrap(): Promise<void> {
   const logger = app.get(ObsLogger);
 
   const port = process.env.PORT ?? 3000;
-  // Wrap startup in a span so the first log line carries a trace_id — a smoke
-  // check that tracing, logging, and trace-correlation are all wired end to end.
-  await tracing.withSpan('api.startup', async () => {
-    await app.listen(port);
-    logger.info('api listening', { port: Number(port) });
+  // Record startup inside a span — the log line carries its trace_id, a smoke check
+  // that tracing, logging, and trace-correlation are wired end to end. The span ends
+  // BEFORE listen() binds the socket, so an early request can't be parented to it.
+  await tracing.withSpan('api.startup', () => {
+    logger.info('api starting', { port: Number(port) });
   });
+  await app.listen(port);
+  logger.info('api listening', { port: Number(port) });
 }
 
 void bootstrap();

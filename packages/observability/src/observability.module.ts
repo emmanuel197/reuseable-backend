@@ -122,6 +122,18 @@ function assembleModule(
 }
 
 /**
+ * The OBS_PROVIDER factory — starts the OTel providers from the resolved OBS_OPTIONS.
+ * Identical for `forRoot`/`forRootAsync`; only how OBS_OPTIONS is produced differs.
+ */
+function obsProviderFactory(): Provider {
+  return {
+    provide: OBS_PROVIDER,
+    inject: [OBS_OPTIONS],
+    useFactory: (o: ObservabilityModuleOptions) => startProvider(o),
+  };
+}
+
+/**
  * Wraps the OpenTelemetry tracer provider as a NestJS module: `forRoot`/`forRootAsync`
  * validate config (zod), register the provider with the chosen exporter, expose
  * `ObsLogger`, and flush/shutdown the provider on application shutdown.
@@ -136,12 +148,7 @@ export class ObservabilityModule implements OnApplicationShutdown {
     // here with a clear stack, not deep in Nest's DI bootstrap.
     const validated = validate(options);
     const optionsProvider: Provider = { provide: OBS_OPTIONS, useValue: validated };
-    const providerFactory: Provider = {
-      provide: OBS_PROVIDER,
-      inject: [OBS_OPTIONS],
-      useFactory: (o: ObservabilityModuleOptions) => startProvider(o),
-    };
-    return assembleModule([optionsProvider, providerFactory]);
+    return assembleModule([optionsProvider, obsProviderFactory()]);
   }
 
   static forRootAsync(options: ObservabilityModuleAsyncOptions): DynamicModule {
@@ -150,12 +157,7 @@ export class ObservabilityModule implements OnApplicationShutdown {
       inject: options.inject ?? [],
       useFactory: async (...args: any[]) => validate(await options.useFactory(...args)),
     };
-    const providerFactory: Provider = {
-      provide: OBS_PROVIDER,
-      inject: [OBS_OPTIONS],
-      useFactory: (o: ObservabilityModuleOptions) => startProvider(o),
-    };
-    return assembleModule([optionsProvider, providerFactory], options.imports ?? []);
+    return assembleModule([optionsProvider, obsProviderFactory()], options.imports ?? []);
   }
 
   async onApplicationShutdown(): Promise<void> {

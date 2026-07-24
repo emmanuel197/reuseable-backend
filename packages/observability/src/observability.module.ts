@@ -29,7 +29,11 @@ export interface ObservabilityModuleOptions {
   serviceName: string;
   /** Which backend to export to. */
   exporter: ExporterKind;
-  /** OTLP endpoint — required when `exporter` is `otlp`. */
+  /**
+   * Base OTLP/HTTP endpoint (e.g. `http://localhost:4318`) — required when `exporter`
+   * is `otlp`. The per-signal path (`/v1/traces`, `/v1/metrics`) is appended per exporter;
+   * do NOT include a signal path.
+   */
   otlpEndpoint?: string;
   /** Advanced/test hook: override span processors directly (e.g. an in-memory exporter). */
   spanProcessors?: SpanProcessor[];

@@ -23,11 +23,25 @@ export type ExporterKind = 'console' | 'otlp' | 'none';
 /**
  * Discriminated union so the `otlp` backend requires an endpoint at the type
  * level — a direct caller can't reach the SDK's silent `localhost:4318` fallback.
+ *
+ * `otlpEndpoint` is the **base** OTLP/HTTP URL (e.g. `http://localhost:4318`); the
+ * per-signal path (`/v1/traces`, `/v1/metrics`) is appended per exporter — do NOT
+ * include a signal path yourself.
  */
 export type ExporterConfig =
   | { kind: 'console' }
   | { kind: 'none' }
   | { kind: 'otlp'; otlpEndpoint: string };
+
+/**
+ * Derive a signal-specific OTLP/HTTP URL from a base endpoint, mirroring the SDK's
+ * own `OTEL_EXPORTER_OTLP_ENDPOINT` behaviour. The exporters use an explicit `url`
+ * as-is (no path appended), so a single shared endpoint would otherwise send both
+ * signals to the same path; deriving the path per signal fixes that.
+ */
+export function otlpSignalUrl(baseEndpoint: string, signal: 'traces' | 'metrics'): string {
+  return `${baseEndpoint.replace(/\/+$/, '')}/v1/${signal}`;
+}
 
 /** Build the span processors for the chosen backend. */
 export function buildSpanProcessors(config: ExporterConfig): SpanProcessor[] {
@@ -37,7 +51,11 @@ export function buildSpanProcessors(config: ExporterConfig): SpanProcessor[] {
     case 'none':
       return [];
     case 'otlp':
-      return [new BatchSpanProcessor(new OTLPTraceExporter({ url: config.otlpEndpoint }))];
+      return [
+        new BatchSpanProcessor(
+          new OTLPTraceExporter({ url: otlpSignalUrl(config.otlpEndpoint, 'traces') }),
+        ),
+      ];
   }
 }
 
@@ -55,7 +73,7 @@ export function buildMetricReaders(config: ExporterConfig): MetricReader[] {
     case 'otlp':
       return [
         new PeriodicExportingMetricReader({
-          exporter: new OTLPMetricExporter({ url: config.otlpEndpoint }),
+          exporter: new OTLPMetricExporter({ url: otlpSignalUrl(config.otlpEndpoint, 'metrics') }),
         }),
       ];
   }

@@ -3,7 +3,7 @@ import { trace } from '@opentelemetry/api';
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { InMemoryMetricExporter, AggregationTemporality, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { buildMetricReaders, buildSpanProcessors } from '../src/exporter-provider';
+import { buildMetricReaders, buildSpanProcessors, otlpSignalUrl } from '../src/exporter-provider';
 import { ObsLogger } from '../src/logger.service';
 import { ObservabilityModule } from '../src/observability.module';
 
@@ -14,13 +14,20 @@ describe('exporter port', () => {
   });
 
   it('otlp builds one processor', () => {
-    expect(buildSpanProcessors({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318/v1/traces' })).toHaveLength(1);
+    expect(buildSpanProcessors({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318' })).toHaveLength(1);
+  });
+
+  it('otlpSignalUrl derives per-signal paths from a base endpoint (and trims trailing slashes)', () => {
+    expect(otlpSignalUrl('http://localhost:4318', 'traces')).toBe('http://localhost:4318/v1/traces');
+    expect(otlpSignalUrl('http://localhost:4318', 'metrics')).toBe('http://localhost:4318/v1/metrics');
+    expect(otlpSignalUrl('http://collector:4318/', 'traces')).toBe('http://collector:4318/v1/traces');
+    expect(otlpSignalUrl('https://otlp.example.com/base//', 'metrics')).toBe('https://otlp.example.com/base/v1/metrics');
   });
 
   it('metric readers mirror the span port: console/otlp build one, none builds zero', async () => {
     const console = buildMetricReaders({ kind: 'console' });
     const none = buildMetricReaders({ kind: 'none' });
-    const otlp = buildMetricReaders({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318/v1/metrics' });
+    const otlp = buildMetricReaders({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318' });
     expect(console).toHaveLength(1);
     expect(none).toHaveLength(0);
     expect(otlp).toHaveLength(1);

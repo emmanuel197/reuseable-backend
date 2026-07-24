@@ -10,4 +10,4 @@ export {
 export { ObsLogger, type LogLevel } from './logger.service';
 export { Tracing } from './tracing.service';
 export { Metrics } from './metrics.service';
-export { type ExporterKind, type ExporterConfig } from './exporter-provider';
+export { type ExporterKind, type ExporterConfig, otlpSignalUrl } from './exporter-provider';

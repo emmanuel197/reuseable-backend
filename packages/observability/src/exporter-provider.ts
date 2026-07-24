@@ -2,7 +2,6 @@ import {
   BatchSpanProcessor,
   ConsoleSpanExporter,
   SimpleSpanProcessor,
-  type SpanExporter,
   type SpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
@@ -31,9 +30,4 @@ export function buildSpanProcessors(config: ExporterConfig): SpanProcessor[] {
     case 'none':
       return [];
   }
-}
-
-/** Wrap any exporter as a simple (synchronous) processor — e.g. an in-memory one in tests. */
-export function spanProcessorForExporter(exporter: SpanExporter): SpanProcessor {
-  return new SimpleSpanProcessor(exporter);
 }

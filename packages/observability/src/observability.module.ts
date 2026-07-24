@@ -67,6 +67,19 @@ function startProvider(options: ObservabilityModuleOptions): NodeTracerProvider 
   return provider;
 }
 
+/** Assemble the ObservabilityModule DynamicModule around a bound provider factory. */
+function assembleModule(
+  providerFactory: Provider,
+  imports: DynamicModule['imports'] = [],
+): DynamicModule {
+  return {
+    module: ObservabilityModule,
+    imports,
+    providers: [providerFactory, ObsLogger],
+    exports: [ObsLogger],
+  };
+}
+
 /**
  * Wraps the OpenTelemetry tracer provider as a NestJS module: `forRoot`/`forRootAsync`
  * validate config (zod), register the provider with the chosen exporter, expose
@@ -82,11 +95,7 @@ export class ObservabilityModule implements OnApplicationShutdown {
       provide: OBS_PROVIDER,
       useFactory: () => startProvider(validate(options)),
     };
-    return {
-      module: ObservabilityModule,
-      providers: [providerFactory, ObsLogger],
-      exports: [ObsLogger],
-    };
+    return assembleModule(providerFactory);
   }
 
   static forRootAsync(options: ObservabilityModuleAsyncOptions): DynamicModule {
@@ -96,12 +105,7 @@ export class ObservabilityModule implements OnApplicationShutdown {
       useFactory: async (...args: any[]) =>
         startProvider(validate(await options.useFactory(...args))),
     };
-    return {
-      module: ObservabilityModule,
-      imports: options.imports ?? [],
-      providers: [providerFactory, ObsLogger],
-      exports: [ObsLogger],
-    };
+    return assembleModule(providerFactory, options.imports ?? []);
   }
 
   async onApplicationShutdown(): Promise<void> {

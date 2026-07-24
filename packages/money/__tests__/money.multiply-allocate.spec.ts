@@ -52,6 +52,14 @@ describe('allocate', () => {
     expect(sum).toBe(5n);
   });
 
+  it('awards the leftover by largest fractional remainder (true LRM)', () => {
+    // 6c by 4:3 — exact shares 3.43c / 2.57c; the extra cent goes to the larger
+    // fractional remainder (0.57, the w=3 bucket), giving [3, 3] not [4, 2].
+    const parts = minor(6n).allocate([4, 3]);
+    expect(parts.map((p) => p.amount)).toEqual([3n, 3n]);
+    expect(parts[0].amount + parts[1].amount).toBe(6n);
+  });
+
   it('weights the split and still conserves the total', () => {
     const parts = usd('1.00').allocate([2, 1]); // 100c by 2:1
     expect(parts.map((p) => p.amount)).toEqual([67n, 33n]);

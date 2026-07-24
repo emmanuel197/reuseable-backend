@@ -69,6 +69,10 @@ export class Money {
   /**
    * Scale by a factor (integer or decimal, e.g. `0.2` for 20% or `3` for triple),
    * rounding the exact result back to minor units. Default is banker's rounding.
+   *
+   * ⚠️ Prefer a **string** factor for very small or computed values. A `number`
+   * is stringified as-is, so magnitudes below `1e-7` render in scientific notation
+   * (e.g. `(1e-8).toString()` → `"1e-8"`) and throw `InvalidAmountError`.
    */
   multiply(factor: number | string, rounding: RoundingMode = 'half-even'): Money {
     const { numerator, denominator } = parseFactor(factor);
@@ -78,8 +82,9 @@ export class Money {
 
   /**
    * Split into parts by integer `ratios`, distributing every last minor unit so
-   * the parts always sum back to the original (largest-remainder method). E.g.
-   * `Money.of('0.05', USD).allocate([1, 1, 1])` → `2c, 2c, 1c`.
+   * the parts always sum back to the original (largest-remainder / Hamilton's
+   * method: leftover units go to the buckets with the largest fractional
+   * remainder). E.g. `Money.of('0.05', USD).allocate([1, 1, 1])` → `2c, 2c, 1c`.
    */
   allocate(ratios: readonly number[]): Money[] {
     if (ratios.length === 0) {
@@ -101,13 +106,23 @@ export class Money {
       return share;
     });
 
-    // Hand the leftover units out one at a time, largest weight first, sign-aware.
+    // Hand leftover units out one at a time to the largest fractional remainders
+    // first (true largest-remainder method), tie-broken by weight then index.
+    // Sign-aware via the remainder magnitude so negatives behave symmetrically.
     const step = this.amount >= 0n ? 1n : -1n;
     const order = weights
-      .map((weight, index) => ({ weight, index }))
-      .filter((w) => w.weight > 0n)
-      .sort((a, b) => (a.weight > b.weight ? -1 : a.weight < b.weight ? 1 : 0))
-      .map((w) => w.index);
+      .map((weight, index) => {
+        const product = this.amount * weight;
+        const frac = product % total; // sign follows the dividend
+        return { index, weight, frac: frac < 0n ? -frac : frac };
+      })
+      .filter((b) => b.weight > 0n)
+      .sort((a, b) => {
+        if (a.frac !== b.frac) return a.frac > b.frac ? -1 : 1;
+        if (a.weight !== b.weight) return a.weight > b.weight ? -1 : 1;
+        return a.index - b.index;
+      })
+      .map((b) => b.index);
     for (let i = 0; remainder !== 0n && order.length > 0; i++) {
       shares[order[i % order.length]] += step;
       remainder -= step;

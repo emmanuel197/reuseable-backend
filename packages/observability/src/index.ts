@@ -8,4 +8,5 @@ export {
   type ObservabilityModuleAsyncOptions,
 } from './observability.module';
 export { ObsLogger, type LogLevel } from './logger.service';
+export { Tracing } from './tracing.service';
 export { type ExporterKind, type ExporterConfig } from './exporter-provider';

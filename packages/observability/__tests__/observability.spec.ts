@@ -74,10 +74,12 @@ describe('ObsLogger trace correlation (real provider + in-memory exporter)', () 
   const logger = new ObsLogger({ serviceName: 'obs-test' });
 
   beforeAll(() => {
+    trace.disable(); // clear any global provider leaked from another test file
     provider.register();
   });
   afterAll(async () => {
     await provider.shutdown();
+    trace.disable();
   });
 
   it('injects the active trace_id/span_id and exports the span', () => {

@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { OBS_OPTIONS } from './constants';
 import { type ExporterConfig, type ExporterKind, buildSpanProcessors } from './exporter-provider';
 import { ObsLogger } from './logger.service';
+import { Tracing } from './tracing.service';
 
 export interface ObservabilityModuleOptions {
   /** Logical service name attached to all telemetry (OTel `service.name`). */
@@ -85,8 +86,8 @@ function assembleModule(
   return {
     module: ObservabilityModule,
     imports,
-    providers: [...providers, ObsLogger],
-    exports: [ObsLogger],
+    providers: [...providers, ObsLogger, Tracing],
+    exports: [ObsLogger, Tracing],
   };
 }
 

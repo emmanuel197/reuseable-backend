@@ -17,10 +17,16 @@ describe('exporter port', () => {
     expect(buildSpanProcessors({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318/v1/traces' })).toHaveLength(1);
   });
 
-  it('metric readers mirror the span port: console/otlp build one, none builds zero', () => {
-    expect(buildMetricReaders({ kind: 'console' })).toHaveLength(1);
-    expect(buildMetricReaders({ kind: 'none' })).toHaveLength(0);
-    expect(buildMetricReaders({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318/v1/metrics' })).toHaveLength(1);
+  it('metric readers mirror the span port: console/otlp build one, none builds zero', async () => {
+    const console = buildMetricReaders({ kind: 'console' });
+    const none = buildMetricReaders({ kind: 'none' });
+    const otlp = buildMetricReaders({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318/v1/metrics' });
+    expect(console).toHaveLength(1);
+    expect(none).toHaveLength(0);
+    expect(otlp).toHaveLength(1);
+    // Each PeriodicExportingMetricReader starts a setInterval; shut them down so the
+    // timers don't leak (open handles) or POST to localhost:4318 during the test run.
+    await Promise.all([...console, ...otlp].map((r) => r.shutdown()));
   });
 });
 

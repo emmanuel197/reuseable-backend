@@ -56,4 +56,15 @@ describe('Metrics service', () => {
     expect(svc.counter('cached_total')).toBe(svc.counter('cached_total'));
     expect(svc.histogram('cached_dist')).toBe(svc.histogram('cached_dist'));
   });
+
+  it('allows re-requesting by name only, or with identical options', () => {
+    const first = svc.counter('opts_total', { unit: 'ms', description: 'd' });
+    expect(svc.counter('opts_total')).toBe(first);
+    expect(svc.counter('opts_total', { unit: 'ms', description: 'd' })).toBe(first);
+  });
+
+  it('throws when the same name is re-requested with conflicting options', () => {
+    svc.counter('conflict_total', { unit: 'ms' });
+    expect(() => svc.counter('conflict_total', { unit: 'bytes' })).toThrow(/different options/);
+  });
 });

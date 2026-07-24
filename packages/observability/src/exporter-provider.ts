@@ -5,6 +5,12 @@ import {
   type SpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import {
+  ConsoleMetricExporter,
+  type MetricReader,
+  PeriodicExportingMetricReader,
+} from '@opentelemetry/sdk-metrics';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 
 /**
  * The exporter backend — the ONE variation point. `console` prints spans (dev);
@@ -32,5 +38,25 @@ export function buildSpanProcessors(config: ExporterConfig): SpanProcessor[] {
       return [];
     case 'otlp':
       return [new BatchSpanProcessor(new OTLPTraceExporter({ url: config.otlpEndpoint }))];
+  }
+}
+
+/**
+ * Build the metric readers for the chosen backend, mirroring {@link buildSpanProcessors}.
+ * A `PeriodicExportingMetricReader` pulls aggregated metrics on an interval and pushes
+ * them to the exporter; `none` yields no readers (instruments still record, nothing exports).
+ */
+export function buildMetricReaders(config: ExporterConfig): MetricReader[] {
+  switch (config.kind) {
+    case 'console':
+      return [new PeriodicExportingMetricReader({ exporter: new ConsoleMetricExporter() })];
+    case 'none':
+      return [];
+    case 'otlp':
+      return [
+        new PeriodicExportingMetricReader({
+          exporter: new OTLPMetricExporter({ url: config.otlpEndpoint }),
+        }),
+      ];
   }
 }

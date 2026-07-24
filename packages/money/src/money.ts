@@ -59,6 +59,9 @@ export class Money {
     if (json.currency === null || typeof json.currency !== 'object') {
       throw new InvalidCurrencyError(String(json.currency), 'currency must be an object');
     }
+    if (typeof json.currency.code !== 'string' || json.currency.code.length === 0) {
+      throw new InvalidCurrencyError(String(json.currency.code), 'currency code must be a non-empty string');
+    }
     assertValidExponent(json.currency.code, json.currency.exponent);
     return new Money(minorUnits, json.currency);
   }

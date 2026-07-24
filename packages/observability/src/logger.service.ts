@@ -1,15 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
+import { OBS_OPTIONS } from './constants';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /**
  * Structured JSON logger that auto-correlates each line with the active trace
- * (injecting `trace_id` / `span_id` from the current span). Emits to stdout/stderr
- * — 12-factor logs the collector scrapes; no vendor coupling.
+ * (injecting `trace_id` / `span_id` from the current span) and stamps the
+ * `service` name. Emits to stdout/stderr — 12-factor logs the collector scrapes;
+ * no vendor coupling.
  */
 @Injectable()
 export class ObsLogger {
+  constructor(@Inject(OBS_OPTIONS) private readonly options: { serviceName: string }) {}
+
   debug(message: string, fields?: Record<string, unknown>): void {
     this.emit('debug', message, fields);
   }
@@ -32,6 +36,7 @@ export class ObsLogger {
     return {
       time: new Date().toISOString(),
       level,
+      service: this.options.serviceName,
       message,
       ...(ctx ? { trace_id: ctx.traceId, span_id: ctx.spanId } : {}),
       ...(fields ?? {}),

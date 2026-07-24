@@ -4,6 +4,7 @@ import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-tr
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { buildSpanProcessors } from '../src/exporter-provider';
 import { ObsLogger } from '../src/logger.service';
+import { ObservabilityModule } from '../src/observability.module';
 
 describe('exporter port', () => {
   it('console builds one processor, none builds zero', () => {
@@ -16,12 +17,33 @@ describe('exporter port', () => {
   });
 });
 
-describe('ObsLogger structured records', () => {
-  const logger = new ObsLogger();
+describe('ObservabilityModule.forRoot validation', () => {
+  it('throws at call time when exporter is otlp without an endpoint', () => {
+    expect(() => ObservabilityModule.forRoot({ serviceName: 's', exporter: 'otlp' })).toThrow();
+  });
 
-  it('emits level, message, and fields with no trace when no span is active', () => {
+  it('waives the endpoint requirement when spanProcessors override the exporter', () => {
+    expect(() =>
+      ObservabilityModule.forRoot({
+        serviceName: 's',
+        exporter: 'otlp',
+        spanProcessors: [new SimpleSpanProcessor(new InMemorySpanExporter())],
+      }),
+    ).not.toThrow();
+  });
+
+  it('throws on an empty serviceName', () => {
+    expect(() => ObservabilityModule.forRoot({ serviceName: '', exporter: 'none' })).toThrow();
+  });
+});
+
+describe('ObsLogger structured records', () => {
+  const logger = new ObsLogger({ serviceName: 'obs-test' });
+
+  it('emits level, service, message, and fields with no trace when no span is active', () => {
     const rec = logger.record('info', 'hello', { userId: 7 });
     expect(rec.level).toBe('info');
+    expect(rec.service).toBe('obs-test');
     expect(rec.message).toBe('hello');
     expect(rec.userId).toBe(7);
     expect(typeof rec.time).toBe('string');
@@ -34,7 +56,7 @@ describe('ObsLogger trace correlation (real provider + in-memory exporter)', () 
   const provider = new NodeTracerProvider({
     spanProcessors: [new SimpleSpanProcessor(memory)],
   });
-  const logger = new ObsLogger();
+  const logger = new ObsLogger({ serviceName: 'obs-test' });
 
   beforeAll(() => {
     provider.register();

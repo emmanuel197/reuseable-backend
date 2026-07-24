@@ -21,6 +21,14 @@ Build for one real product, extract once proven. Each component = a publishable 
 - src/index.ts  barrel — the ONLY public surface.
 - __tests__/    unit tests.
 
+## Monolith runtime (Wave-1)
+- One deployable (apps/api). Persistence: ONE Postgres, a schema per module — no cross-schema reads
+  (modules share data via a published interface or an event, never each other's tables).
+- Module-to-module: in-process calls via exported providers + in-process domain events.
+  Kafka is ONLY for the external seam (analytics / durable workflow), via a transactional outbox —
+  NOT between our own modules.
+- Externals are adopt-not-embed: Durable Workflow (Temporal), Analytics Warehouse.
+
 ## Commands
 - Install:   pnpm install
 - Build:     pnpm -r build
@@ -39,3 +47,4 @@ Read real source, not docs. For any package we use:
 ## Security
 - Never install a package younger than 14 days.
 - Secrets never in code or git. .env is gitignored; .env.example documents keys.
+

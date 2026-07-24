@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { trace } from '@opentelemetry/api';
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { buildSpanProcessors } from '../src/exporter-provider';
+import { InMemoryMetricExporter, AggregationTemporality, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { buildMetricReaders, buildSpanProcessors } from '../src/exporter-provider';
 import { ObsLogger } from '../src/logger.service';
 import { ObservabilityModule } from '../src/observability.module';
 
@@ -15,6 +16,18 @@ describe('exporter port', () => {
   it('otlp builds one processor', () => {
     expect(buildSpanProcessors({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318/v1/traces' })).toHaveLength(1);
   });
+
+  it('metric readers mirror the span port: console/otlp build one, none builds zero', async () => {
+    const console = buildMetricReaders({ kind: 'console' });
+    const none = buildMetricReaders({ kind: 'none' });
+    const otlp = buildMetricReaders({ kind: 'otlp', otlpEndpoint: 'http://localhost:4318/v1/metrics' });
+    expect(console).toHaveLength(1);
+    expect(none).toHaveLength(0);
+    expect(otlp).toHaveLength(1);
+    // Each PeriodicExportingMetricReader starts a setInterval; shut them down so the
+    // timers don't leak (open handles) or POST to localhost:4318 during the test run.
+    await Promise.all([...console, ...otlp].map((r) => r.shutdown()));
+  });
 });
 
 describe('ObservabilityModule.forRoot validation', () => {
@@ -22,12 +35,27 @@ describe('ObservabilityModule.forRoot validation', () => {
     expect(() => ObservabilityModule.forRoot({ serviceName: 's', exporter: 'otlp' })).toThrow();
   });
 
-  it('waives the endpoint requirement when spanProcessors override the exporter', () => {
+  it('still requires an endpoint when only span processors are overridden (metrics would fall back)', () => {
     expect(() =>
       ObservabilityModule.forRoot({
         serviceName: 's',
         exporter: 'otlp',
         spanProcessors: [new SimpleSpanProcessor(new InMemorySpanExporter())],
+      }),
+    ).toThrow();
+  });
+
+  it('waives the endpoint requirement when BOTH span processors and metric readers override the exporter', () => {
+    expect(() =>
+      ObservabilityModule.forRoot({
+        serviceName: 's',
+        exporter: 'otlp',
+        spanProcessors: [new SimpleSpanProcessor(new InMemorySpanExporter())],
+        metricReaders: [
+          new PeriodicExportingMetricReader({
+            exporter: new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE),
+          }),
+        ],
       }),
     ).not.toThrow();
   });

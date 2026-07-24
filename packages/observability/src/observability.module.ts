@@ -6,14 +6,22 @@ import {
   type OnApplicationShutdown,
   type Provider,
 } from '@nestjs/common';
+import { metrics } from '@opentelemetry/api';
 import { Resource } from '@opentelemetry/resources';
 import type { SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { MeterProvider, type MetricReader } from '@opentelemetry/sdk-metrics';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { z } from 'zod';
 import { OBS_OPTIONS } from './constants';
-import { type ExporterConfig, type ExporterKind, buildSpanProcessors } from './exporter-provider';
+import {
+  type ExporterConfig,
+  type ExporterKind,
+  buildMetricReaders,
+  buildSpanProcessors,
+} from './exporter-provider';
 import { ObsLogger } from './logger.service';
+import { Metrics } from './metrics.service';
 import { Tracing } from './tracing.service';
 
 export interface ObservabilityModuleOptions {
@@ -25,6 +33,8 @@ export interface ObservabilityModuleOptions {
   otlpEndpoint?: string;
   /** Advanced/test hook: override span processors directly (e.g. an in-memory exporter). */
   spanProcessors?: SpanProcessor[];
+  /** Advanced/test hook: override metric readers directly (e.g. an in-memory reader). */
+  metricReaders?: MetricReader[];
 }
 
 export interface ObservabilityModuleAsyncOptions {
@@ -42,14 +52,22 @@ const optionsSchema = z
     serviceName: z.string().min(1, 'serviceName is required'),
     exporter: z.enum(['console', 'otlp', 'none']),
     otlpEndpoint: z.string().url().optional(),
-    // The otlpEndpoint requirement is waived when the caller supplies their own
-    // span processors (the exporter selection is then bypassed entirely).
+    // The otlpEndpoint requirement is waived only when the caller overrides BOTH the
+    // span processors and the metric readers — otherwise the un-overridden signal is
+    // built from the exporter config and would reach the SDK's silent localhost fallback.
     hasSpanProcessors: z.boolean(),
+    hasMetricReaders: z.boolean(),
   })
-  .refine((o) => o.exporter !== 'otlp' || o.hasSpanProcessors || Boolean(o.otlpEndpoint), {
-    message: 'otlpEndpoint is required when exporter is "otlp"',
-    path: ['otlpEndpoint'],
-  });
+  .refine(
+    (o) =>
+      o.exporter !== 'otlp' ||
+      (o.hasSpanProcessors && o.hasMetricReaders) ||
+      Boolean(o.otlpEndpoint),
+    {
+      message: 'otlpEndpoint is required when exporter is "otlp"',
+      path: ['otlpEndpoint'],
+    },
+  );
 
 function validate(options: ObservabilityModuleOptions): ObservabilityModuleOptions {
   optionsSchema.parse({
@@ -57,6 +75,7 @@ function validate(options: ObservabilityModuleOptions): ObservabilityModuleOptio
     exporter: options.exporter,
     otlpEndpoint: options.otlpEndpoint,
     hasSpanProcessors: Boolean(options.spanProcessors),
+    hasMetricReaders: Boolean(options.metricReaders),
   });
   return options;
 }
@@ -68,14 +87,25 @@ function toExporterConfig(options: ObservabilityModuleOptions): ExporterConfig {
     : { kind: options.exporter };
 }
 
-function startProvider(options: ObservabilityModuleOptions): NodeTracerProvider {
-  const spanProcessors = options.spanProcessors ?? buildSpanProcessors(toExporterConfig(options));
-  const provider = new NodeTracerProvider({
-    resource: new Resource({ [ATTR_SERVICE_NAME]: options.serviceName }),
-    spanProcessors,
-  });
-  provider.register(); // sets the global tracer provider + async context manager
-  return provider;
+/** The started OTel providers, held so the module can flush/shutdown both on exit. */
+interface ObsProviders {
+  tracerProvider: NodeTracerProvider;
+  meterProvider: MeterProvider;
+}
+
+function startProvider(options: ObservabilityModuleOptions): ObsProviders {
+  const resource = new Resource({ [ATTR_SERVICE_NAME]: options.serviceName });
+  const exporterConfig = toExporterConfig(options);
+
+  const spanProcessors = options.spanProcessors ?? buildSpanProcessors(exporterConfig);
+  const tracerProvider = new NodeTracerProvider({ resource, spanProcessors });
+  tracerProvider.register(); // sets the global tracer provider + async context manager
+
+  const readers = options.metricReaders ?? buildMetricReaders(exporterConfig);
+  const meterProvider = new MeterProvider({ resource, readers });
+  metrics.setGlobalMeterProvider(meterProvider); // sets the global meter provider
+
+  return { tracerProvider, meterProvider };
 }
 
 /** Assemble the ObservabilityModule DynamicModule around the given providers. */
@@ -86,8 +116,8 @@ function assembleModule(
   return {
     module: ObservabilityModule,
     imports,
-    providers: [...providers, ObsLogger, Tracing],
-    exports: [ObsLogger, Tracing],
+    providers: [...providers, ObsLogger, Tracing, Metrics],
+    exports: [ObsLogger, Tracing, Metrics],
   };
 }
 
@@ -99,7 +129,7 @@ function assembleModule(
 @Global()
 @Module({})
 export class ObservabilityModule implements OnApplicationShutdown {
-  constructor(@Inject(OBS_PROVIDER) private readonly provider: NodeTracerProvider) {}
+  constructor(@Inject(OBS_PROVIDER) private readonly providers: ObsProviders) {}
 
   static forRoot(options: ObservabilityModuleOptions): DynamicModule {
     // Validate at call time (not inside the factory) so a misconfiguration throws
@@ -129,6 +159,11 @@ export class ObservabilityModule implements OnApplicationShutdown {
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.provider.shutdown();
+    // Flush/shutdown both signal providers; the meter reader is periodic, so this
+    // forces a final export instead of dropping the last interval's metrics.
+    await Promise.all([
+      this.providers.tracerProvider.shutdown(),
+      this.providers.meterProvider.shutdown(),
+    ]);
   }
 }

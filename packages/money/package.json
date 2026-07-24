@@ -1,0 +1,28 @@
+{
+  "name": "@reuseablebackend/money",
+  "version": "0.1.0",
+  "description": "Exact multi-currency money: an immutable value object over bigint minor units. Zero runtime deps.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "test": "vitest run",
+    "lint": "eslint \"src/**/*.ts\""
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

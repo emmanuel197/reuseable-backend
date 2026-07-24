@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Money } from '../src/money';
-import { getCurrency } from '../src/currency';
+import { getCurrency, defineCurrency } from '../src/currency';
 import { CurrencyMismatchError } from '../src/errors';
 
 const USD = getCurrency('USD');
@@ -56,8 +56,17 @@ describe('comparison', () => {
     expect(usd('2.00').greaterThan(usd('2.00'))).toBe(false);
   });
 
-  it('compare throws across currencies', () => {
-    expect(() => usd('1.00').compare(Money.of('1.00', EUR))).toThrow(CurrencyMismatchError);
+  it('compare/greaterThan/lessThan throw across currencies', () => {
+    const eur = Money.of('1.00', EUR);
+    expect(() => usd('1.00').compare(eur)).toThrow(CurrencyMismatchError);
+    expect(() => usd('1.00').greaterThan(eur)).toThrow(CurrencyMismatchError);
+    expect(() => usd('1.00').lessThan(eur)).toThrow(CurrencyMismatchError);
+  });
+
+  it('same code but different exponent is not interchangeable', () => {
+    const usd3 = Money.fromMinor(1000n, defineCurrency('USD', 3));
+    expect(usd('1.00').equals(usd3)).toBe(false);
+    expect(() => usd('1.00').add(usd3)).toThrow(CurrencyMismatchError);
   });
 
   it('sign predicates', () => {

@@ -57,7 +57,11 @@ export function defineCurrency(code: string, exponent: number): Currency {
   return { code, exponent };
 }
 
-/** Two currencies are equal when their codes match. */
+/**
+ * Two currencies are equal when both code and exponent match. The exponent is
+ * included so a mis-defined `{ code: 'USD', exponent: 3 }` is never treated as
+ * interchangeable with the real `USD` (exponent 2), which would corrupt arithmetic.
+ */
 export function currenciesEqual(a: Currency, b: Currency): boolean {
-  return a.code === b.code;
+  return a.code === b.code && a.exponent === b.exponent;
 }

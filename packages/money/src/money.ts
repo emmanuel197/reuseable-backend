@@ -1,5 +1,5 @@
 import { type Currency, assertValidExponent, currenciesEqual } from './currency';
-import { InvalidAmountError, InvalidCurrencyError } from './errors';
+import { CurrencyMismatchError, InvalidAmountError, InvalidCurrencyError } from './errors';
 
 /** JSON shape: self-contained (carries the currency), so round-trips exactly. */
 export interface MoneyJSON {
@@ -41,6 +41,67 @@ export class Money {
   /** Same currency and same minor amount. Differing currencies are simply not equal. */
   equals(other: Money): boolean {
     return currenciesEqual(this.currency, other.currency) && this.amount === other.amount;
+  }
+
+  /** Sum of two same-currency amounts. Throws `CurrencyMismatchError` across currencies. */
+  add(other: Money): Money {
+    this.assertSameCurrency(other);
+    return new Money(this.amount + other.amount, this.currency);
+  }
+
+  /** Difference of two same-currency amounts. Throws `CurrencyMismatchError` across currencies. */
+  subtract(other: Money): Money {
+    this.assertSameCurrency(other);
+    return new Money(this.amount - other.amount, this.currency);
+  }
+
+  /** The additive inverse (same magnitude, opposite sign). */
+  negate(): Money {
+    return new Money(-this.amount, this.currency);
+  }
+
+  /** The absolute value (never negative). */
+  abs(): Money {
+    return new Money(this.amount < 0n ? -this.amount : this.amount, this.currency);
+  }
+
+  /** `-1`, `0`, or `1` — this vs other. Throws `CurrencyMismatchError` across currencies. */
+  compare(other: Money): -1 | 0 | 1 {
+    this.assertSameCurrency(other);
+    if (this.amount < other.amount) return -1;
+    if (this.amount > other.amount) return 1;
+    return 0;
+  }
+
+  /** True when this amount is strictly greater than other (same currency). */
+  greaterThan(other: Money): boolean {
+    return this.compare(other) > 0;
+  }
+
+  /** True when this amount is strictly less than other (same currency). */
+  lessThan(other: Money): boolean {
+    return this.compare(other) < 0;
+  }
+
+  /** True when the amount is exactly zero. */
+  isZero(): boolean {
+    return this.amount === 0n;
+  }
+
+  /** True when the amount is below zero. */
+  isNegative(): boolean {
+    return this.amount < 0n;
+  }
+
+  /** True when the amount is above zero. */
+  isPositive(): boolean {
+    return this.amount > 0n;
+  }
+
+  private assertSameCurrency(other: Money): void {
+    if (!currenciesEqual(this.currency, other.currency)) {
+      throw new CurrencyMismatchError(this.currency.code, other.currency.code);
+    }
   }
 
   /** Self-contained JSON (`amount` as string, plus the currency). */

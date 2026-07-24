@@ -32,11 +32,12 @@ const EXPONENTS: Readonly<Record<string, number>> = {
 
 /** Look up a known currency by ISO 4217 code. Throws if the code is unknown. */
 export function getCurrency(code: string): Currency {
-  const exponent = EXPONENTS[code];
-  if (exponent === undefined) {
+  // Object.hasOwn (not `[code] === undefined`) so inherited keys like
+  // 'constructor'/'toString' don't slip past the guard via the prototype chain.
+  if (!Object.hasOwn(EXPONENTS, code)) {
     throw new InvalidCurrencyError(code);
   }
-  return { code, exponent };
+  return { code, exponent: EXPONENTS[code] };
 }
 
 /**

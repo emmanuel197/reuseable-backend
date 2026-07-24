@@ -17,6 +17,12 @@ describe('Currency', () => {
     expect(() => getCurrency('ZZZ')).toThrow(InvalidCurrencyError);
   });
 
+  it('throws on inherited Object keys (no prototype-chain leak)', () => {
+    expect(() => getCurrency('constructor')).toThrow(InvalidCurrencyError);
+    expect(() => getCurrency('toString')).toThrow(InvalidCurrencyError);
+    expect(() => getCurrency('hasOwnProperty')).toThrow(InvalidCurrencyError);
+  });
+
   it('defineCurrency rejects a negative exponent', () => {
     expect(() => defineCurrency('XTS', -1)).toThrow(InvalidCurrencyError);
   });
@@ -73,6 +79,20 @@ describe('Money serialization', () => {
     const original = Money.fromMinor(-99n, JPY);
     const restored = Money.fromJSON(JSON.parse(JSON.stringify(original)));
     expect(restored.equals(original)).toBe(true);
+  });
+
+  it('fromJSON throws InvalidAmountError on a non-integer amount string', () => {
+    expect(() => Money.fromJSON({ amount: '10.50', currency: USD })).toThrow(InvalidAmountError);
+    expect(() => Money.fromJSON({ amount: 'abc', currency: USD })).toThrow(InvalidAmountError);
+  });
+
+  it('fromJSON throws InvalidCurrencyError on a bad exponent', () => {
+    expect(() => Money.fromJSON({ amount: '100', currency: { code: 'XxX', exponent: -1 } })).toThrow(
+      InvalidCurrencyError,
+    );
+    expect(() => Money.fromJSON({ amount: '100', currency: { code: 'XxX', exponent: 1.5 } })).toThrow(
+      InvalidCurrencyError,
+    );
   });
 
   it('toString renders a canonical decimal', () => {

@@ -1,5 +1,5 @@
 import { type Currency, currenciesEqual } from './currency';
-import { InvalidAmountError } from './errors';
+import { InvalidAmountError, InvalidCurrencyError } from './errors';
 
 /** JSON shape: self-contained (carries the currency), so round-trips exactly. */
 export interface MoneyJSON {
@@ -28,6 +28,11 @@ export class Money {
    * Build from a major amount — a decimal number or string (e.g. `10.5` or
    * `"10.50"` USD → `1050n`). Rejects more fractional digits than the currency
    * allows, since that cannot be represented exactly (no silent rounding here).
+   *
+   * ⚠️ Prefer a **string** for computed amounts. A `number` is stringified as-is,
+   * so a float-arithmetic result (e.g. `0.1 + 0.2` → `0.30000000000000004`) will
+   * throw `InvalidAmountError` rather than silently round. The `number` overload
+   * is safe for exact literals like `1000` or `10.5`.
    */
   static of(amount: number | string, currency: Currency): Money {
     return new Money(parseMajorToMinor(amount, currency.exponent), currency);
@@ -43,9 +48,19 @@ export class Money {
     return { amount: this.amount.toString(), currency: this.currency };
   }
 
-  /** Rebuild from {@link toJSON} output. Exact round-trip. */
+  /** Rebuild from {@link toJSON} output. Exact round-trip; validates untrusted input. */
   static fromJSON(json: MoneyJSON): Money {
-    return new Money(BigInt(json.amount), json.currency);
+    let minorUnits: bigint;
+    try {
+      minorUnits = BigInt(json.amount);
+    } catch {
+      throw new InvalidAmountError(String(json.amount), 'amount must be an integer string');
+    }
+    const { code, exponent } = json.currency;
+    if (!Number.isInteger(exponent) || exponent < 0) {
+      throw new InvalidCurrencyError(code, `exponent must be a non-negative integer, got ${exponent}`);
+    }
+    return new Money(minorUnits, json.currency);
   }
 
   /** Canonical debug string, e.g. `"10.50 USD"`. NOT locale formatting. */

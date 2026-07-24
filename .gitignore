@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+lib/
+*.tsbuildinfo
+
+# secrets & env
+.env
+.env.*
+!.env.example
+
+# agent workspaces & fetched source
+repos/
+.worktrees/
+
+# logs & misc
+*.log
+.DS_Store
